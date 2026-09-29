@@ -1,3 +1,1073 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Field Clock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --ink: #14213D;
+    --steel: #3A5A78;
+    --paper: #EEF1F1;
+    --panel: #FFFFFF;
+    --line: #D6DAD9;
+    --muted: #6B7684;
+    --in: #1F7A53;
+    --in-soft: #E4F2EA;
+    --out: #B4432E;
+    --out-soft: #F7E8E4;
+    --focus: #3A5A78;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ink: #EDEFF3;
+      --steel: #8FB4D6;
+      --paper: #10151C;
+      --panel: #181F28;
+      --line: #2A333E;
+      --muted: #8A93A0;
+      --in: #4CBF87;
+      --in-soft: #12291F;
+      --out: #E07B60;
+      --out-soft: #2E1712;
+      --focus: #8FB4D6;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ink: #EDEFF3;
+    --steel: #8FB4D6;
+    --paper: #10151C;
+    --panel: #181F28;
+    --line: #2A333E;
+    --muted: #8A93A0;
+    --in: #4CBF87;
+    --in-soft: #12291F;
+    --out: #E07B60;
+    --out-soft: #2E1712;
+    --focus: #8FB4D6;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    height: 100%;
+    margin: 0;
+  }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'IBM Plex Sans', system-ui, sans-serif;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    min-height: 100%;
+  }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+  #app { max-width: 480px; margin: 0 auto; min-height: 100vh; display: flex; flex-direction: column; }
+  #app.wide { max-width: 900px; }
+  header.topbar {
+    position: sticky; top: env(safe-area-inset-top, 0px); z-index: 10;
+    background: var(--ink); color: var(--paper);
+    padding: 14px 18px; display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px solid var(--line);
+  }
+  header.topbar .brand { font-weight: 600; font-size: 15px; letter-spacing: 0.2px; }
+  header.topbar .brand .dot { color: var(--in); }
+  header.topbar button.link {
+    background: none; border: none; color: var(--paper); opacity: 0.75;
+    font-family: inherit; font-size: 13px; cursor: pointer; padding: 4px 6px;
+  }
+  header.topbar button.link:hover { opacity: 1; }
+  main { flex: 1; padding: 24px 20px 40px; }
+  .screen { display: flex; flex-direction: column; gap: 18px; }
+  h1.title { font-size: 22px; margin: 0 0 4px; font-weight: 600; }
+  p.sub { color: var(--muted); margin: 0; font-size: 14px; line-height: 1.5; }
+  .stack { display: flex; flex-direction: column; gap: 10px; }
+  .card {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    padding: 18px;
+  }
+  button { font-family: inherit; }
+  .name-btn {
+    display: flex; align-items: center; justify-content: space-between;
+    width: 100%; padding: 16px 18px; border-radius: 10px; border: 1px solid var(--line);
+    background: var(--panel); color: var(--ink); font-size: 16px; font-weight: 500;
+    cursor: pointer; text-align: left;
+  }
+  .name-btn:hover { border-color: var(--steel); }
+  .name-btn:focus-visible, button:focus-visible, input:focus-visible {
+    outline: 2px solid var(--focus); outline-offset: 2px;
+  }
+  .name-btn .arrow { color: var(--muted); }
+  .role-btn {
+    padding: 22px 20px; border-radius: 12px; border: 1px solid var(--line);
+    background: var(--panel); cursor: pointer; text-align: left; display: flex;
+    flex-direction: column; gap: 4px;
+  }
+  .role-btn strong { font-size: 17px; }
+  .role-btn span { color: var(--muted); font-size: 13px; }
+  .role-btn:hover { border-color: var(--steel); }
+  .pin-dots { display: flex; gap: 12px; justify-content: center; margin: 6px 0; }
+  .pin-dot {
+    width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid var(--muted);
+    background: transparent;
+  }
+  .pin-dot.filled { background: var(--ink); border-color: var(--ink); }
+  .keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .key {
+    padding: 18px 0; font-size: 20px; border-radius: 10px; border: 1px solid var(--line);
+    background: var(--panel); color: var(--ink); cursor: pointer;
+  }
+  .key:hover { border-color: var(--steel); }
+  .key.wide { grid-column: span 1; color: var(--muted); font-size: 14px; }
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 12px 18px; border-radius: 8px; border: 1px solid var(--line);
+    background: var(--panel); color: var(--ink); font-size: 14px; font-weight: 500;
+    cursor: pointer;
+  }
+  .btn:hover { border-color: var(--steel); }
+  .btn.primary { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+  .btn.primary:hover { opacity: 0.92; }
+  .btn.block { width: 100%; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .clock-face {
+    text-align: center; padding: 28px 18px; border-radius: 14px; border: 1px solid var(--line);
+    background: var(--panel);
+  }
+  .clock-face .now { font-size: 34px; font-weight: 600; letter-spacing: 1px; }
+  .clock-face .status-line { margin-top: 8px; font-size: 14px; color: var(--muted); }
+  .status-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; position: relative; top: -1px; }
+  .status-dot.in { background: var(--in); }
+  .status-dot.out { background: var(--out); }
+  .clock-btn {
+    margin-top: 20px; width: 100%; padding: 22px; border-radius: 12px; border: none;
+    font-size: 18px; font-weight: 600; cursor: pointer; color: #fff;
+  }
+  .clock-btn.do-in { background: var(--in); }
+  .clock-btn.do-out { background: var(--out); }
+  .clock-btn:disabled { opacity: 0.6; cursor: wait; }
+  .entry-row {
+    display: flex; align-items: flex-start; gap: 10px; padding: 12px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .entry-row:last-child { border-bottom: none; }
+  .entry-row .time { font-size: 14px; min-width: 64px; }
+  .entry-row .meta { flex: 1; font-size: 13px; color: var(--muted); }
+  .entry-row .meta a { color: var(--steel); }
+  .section-label { font-size: 12px; color: var(--muted); font-weight: 500; }
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); }
+  .tab {
+    padding: 10px 14px; border: none; background: none; color: var(--muted);
+    font-size: 14px; cursor: pointer; border-bottom: 2px solid transparent; font-family: inherit;
+  }
+  .tab.active { color: var(--ink); border-bottom-color: var(--ink); font-weight: 600; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 9px 8px; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 500; font-size: 12px; }
+  .rep-status-card {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel);
+  }
+  .rep-status-card .name { font-weight: 500; }
+  .rep-status-card .sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .pill { padding: 4px 10px; border-radius: 100px; font-size: 12px; font-weight: 500; }
+  .pill.in { background: var(--in-soft); color: var(--in); }
+  .pill.out { background: var(--out-soft); color: var(--out); }
+  input[type=text], input[type=datetime-local], input[type=number] {
+    width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line);
+    background: var(--panel); color: var(--ink); font-family: inherit; font-size: 14px;
+  }
+  label.field { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--muted); }
+  .modal-backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: flex-end;
+    justify-content: center; z-index: 50;
+  }
+  @media (min-width: 640px) { .modal-backdrop { align-items: center; } }
+  .modal {
+    background: var(--panel); border-radius: 14px 14px 0 0; padding: 20px; width: 100%; max-width: 480px;
+    max-height: 85vh; overflow-y: auto; border: 1px solid var(--line);
+  }
+  @media (min-width: 640px) { .modal { border-radius: 14px; } }
+  .modal h2 { margin: 0 0 14px; font-size: 16px; }
+  .row-actions { display: flex; gap: 8px; margin-top: 16px; }
+  .banner {
+    padding: 10px 14px; border-radius: 8px; font-size: 13px; background: var(--out-soft); color: var(--out);
+    border: 1px solid var(--out);
+  }
+  .banner.info { background: var(--in-soft); color: var(--in); border-color: var(--in); }
+  .empty { color: var(--muted); font-size: 13px; padding: 20px 0; text-align: center; }
+  .back-link {
+    background: none; border: none; color: var(--muted); font-size: 13px; cursor: pointer;
+    display: flex; align-items: center; gap: 4px; padding: 0; font-family: inherit;
+  }
+  .back-link:hover { color: var(--ink); }
+  .filters { display: flex; gap: 8px; flex-wrap: wrap; }
+  .filters select {
+    padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel);
+    color: var(--ink); font-family: inherit; font-size: 13px;
+  }
+  .overflow-x { overflow-x: auto; }
+  .totals-strip { display: flex; gap: 14px; flex-wrap: wrap; }
+  .totals-strip .stat { min-width: 90px; }
+  .totals-strip .stat .num { font-size: 20px; font-weight: 600; }
+  .totals-strip .stat .lbl { font-size: 11px; color: var(--muted); }
+  .edit-link { background: none; border: none; color: var(--steel); font-size: 12px; cursor: pointer; padding: 0; font-family: inherit; }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <header class="topbar">
+    <div class="brand"><span class="dot">●</span> Field Clock</div>
+    <button class="link" id="topbarAction" style="visibility:hidden">Exit</button>
+  </header>
+  <main id="main"><div class="empty">Loading…</div></main>
+  <footer style="padding:12px 20px 20px; font-size:12px; color:var(--muted); text-align:center;">Demo mode: data is saved in this browser only. Team PINs 1111, 2222, 3333. Admin PIN 0000. <button class="edit-link" id="resetDemo" type="button">Reset demo data</button></footer>
+</div>
+<script>document.addEventListener("DOMContentLoaded",function(){var b=document.getElementById("resetDemo");if(b)b.onclick=function(){window.fieldClockDemo.reset();location.reload();};});</script>
+
+<script src="demo-db.js"></script>
+<script>
+(function(){
+  'use strict';
+
+  // ---------- state ----------
+  const state = {
+    dbReady: null,       // db namespace or null
+    dbChecked: false,
+    reps: [],            // [{id,name,pin,status,lastAt}]
+    repsLoaded: false,
+    screen: 'home',
+    pendingRepId: null,
+    pinBuffer: '',
+    currentRep: null,
+    myEntries: [],
+    myEntriesUnsub: null,
+    adminPinBuffer: '',
+    adminTab: 'live',
+    allEntries: [],
+    allEntriesUnsub: null,
+    historyFilterRep: 'all',
+    editingEntry: null,
+    busy: false,
+    error: null,
+    exportMonth: new Date().toISOString().slice(0,7),
+    exportBusy: false,
+    exportError: null,
+    exportAllBusy: false,
+    exportAllError: null,
+  };
+
+  const $main = document.getElementById('main');
+  const $topbarAction = document.getElementById('topbarAction');
+
+  function slugify(s){ return s.toLowerCase().trim().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,''); }
+  function esc(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+  function fmtTime(iso){
+    try {
+      const d = new Date(iso);
+      return d.toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});
+    } catch(e){ return '—'; }
+  }
+  function fmtDateTime(iso){
+    try {
+      const d = new Date(iso);
+      return d.toLocaleDateString([], {month:'short', day:'numeric'}) + ' · ' + d.toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});
+    } catch(e){ return '—'; }
+  }
+  function toDatetimeLocal(iso){
+    try {
+      const d = new Date(iso);
+      const pad = n => String(n).padStart(2,'0');
+      return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+    } catch(e){ return ''; }
+  }
+  function isSameDay(a,b){
+    return a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate();
+  }
+  function startOfWeek(d){
+    const x = new Date(d);
+    const day = (x.getDay()+6)%7; // Monday=0
+    x.setDate(x.getDate()-day);
+    x.setHours(0,0,0,0);
+    return x;
+  }
+  function mapLink(lat,lng){
+    return 'https://www.google.com/maps?q=' + lat + ',' + lng;
+  }
+  function minutesToLabel(mins){
+    if (!isFinite(mins) || mins <= 0) return '0h 00m';
+    const h = Math.floor(mins/60), m = Math.round(mins%60);
+    return h + 'h ' + String(m).padStart(2,'0') + 'm';
+  }
+
+  // pair up in/out entries chronologically per rep to compute worked minutes in a window
+  function computeWorkedMinutes(entries, repId, sinceDate){
+    const list = entries.filter(e => e.repId === repId).slice().sort((a,b)=> new Date(a.ts) - new Date(b.ts));
+    let total = 0;
+    let openIn = null;
+    const now = new Date();
+    for (const e of list){
+      const t = new Date(e.ts);
+      if (e.type === 'in'){ openIn = t; }
+      else if (e.type === 'out' && openIn){
+        total += overlapMinutes(openIn, t, sinceDate, now);
+        openIn = null;
+      }
+    }
+    if (openIn){ total += overlapMinutes(openIn, now, sinceDate, now); }
+    return total;
+  }
+  function overlapMinutes(start, end, windowStart, windowEnd){
+    const s = start < windowStart ? windowStart : start;
+    const e = end > windowEnd ? windowEnd : end;
+    const ms = e - s;
+    return ms > 0 ? ms/60000 : 0;
+  }
+
+  function render(){
+    if (!state.dbChecked){
+      $main.innerHTML = '<div class="empty">Loading…</div>';
+      return;
+    }
+    if (!state.dbReady){
+      $main.innerHTML = '<div class="screen"><div class="banner">This app needs to run as a published Claude artifact with data access to work. Reopen it from its share link.</div></div>';
+      return;
+    }
+    $topbarAction.style.visibility = (state.screen === 'home') ? 'hidden' : 'visible';
+    $topbarAction.textContent = 'Exit';
+
+    switch(state.screen){
+      case 'home': return renderHome();
+      case 'rep-select': return renderRepSelect();
+      case 'rep-pin': return renderRepPin();
+      case 'rep-main': return renderRepMain();
+      case 'admin-pin': return renderAdminPin();
+      case 'admin-main': return renderAdminMain();
+    }
+  }
+
+  function goHome(){
+    if (state.myEntriesUnsub){ state.myEntriesUnsub(); state.myEntriesUnsub = null; }
+    if (state.allEntriesUnsub){ state.allEntriesUnsub(); state.allEntriesUnsub = null; }
+    state.screen = 'home';
+    state.pendingRepId = null;
+    state.pinBuffer = '';
+    state.adminPinBuffer = '';
+    state.currentRep = null;
+    state.myEntries = [];
+    state.error = null;
+    document.getElementById('app').classList.remove('wide');
+    render();
+  }
+  $topbarAction.addEventListener('click', goHome);
+
+  // ---------- HOME ----------
+  function renderHome(){
+    document.getElementById('app').classList.remove('wide');
+    $main.innerHTML = `
+      <div class="screen">
+        <div>
+          <h1 class="title">Clock in, on the road</h1>
+          <p class="sub">Pick how you're signing in.</p>
+        </div>
+        <div class="stack">
+          <button class="role-btn" id="btnRep">
+            <strong>I'm on the team</strong>
+            <span>Clock in or out with your name and PIN</span>
+          </button>
+          <button class="role-btn" id="btnAdmin">
+            <strong>Admin</strong>
+            <span>View status, history, and make corrections</span>
+          </button>
+        </div>
+      </div>
+    `;
+    document.getElementById('btnRep').onclick = () => { state.screen = 'rep-select'; render(); };
+    document.getElementById('btnAdmin').onclick = () => { state.screen = 'admin-pin'; state.adminPinBuffer=''; render(); };
+  }
+
+  // ---------- REP SELECT ----------
+  function renderRepSelect(){
+    if (!state.repsLoaded){
+      $main.innerHTML = '<div class="empty">Loading team…</div>';
+      return;
+    }
+    const list = state.reps.map(r => `
+      <button class="name-btn" data-id="${esc(r.id)}">
+        <span>${esc(r.name)}</span>
+        <span class="arrow">→</span>
+      </button>
+    `).join('');
+    $main.innerHTML = `
+      <div class="screen">
+        <button class="back-link" id="back">← Back</button>
+        <div>
+          <h1 class="title">Who's clocking in?</h1>
+          <p class="sub">Tap your name.</p>
+        </div>
+        <div class="stack">
+          ${list || '<div class="empty">No team members set up yet. Ask your admin.</div>'}
+        </div>
+      </div>
+    `;
+    document.getElementById('back').onclick = goHome;
+    state.reps.forEach(r => {
+      const btn = $main.querySelector(`[data-id="${CSS.escape(r.id)}"]`);
+      if (btn) btn.onclick = () => {
+        state.pendingRepId = r.id;
+        state.pinBuffer = '';
+        state.screen = 'rep-pin';
+        render();
+      };
+    });
+  }
+
+  // ---------- REP PIN ----------
+  function renderRepPin(){
+    const rep = state.reps.find(r => r.id === state.pendingRepId);
+    const dots = Array.from({length:4}).map((_,i) => `<div class="pin-dot ${i < state.pinBuffer.length ? 'filled':''}"></div>`).join('');
+    $main.innerHTML = `
+      <div class="screen">
+        <button class="back-link" id="back">← Back</button>
+        <div>
+          <h1 class="title">${esc(rep ? rep.name : '')}</h1>
+          <p class="sub">Enter your 4-digit PIN.</p>
+        </div>
+        ${state.error ? `<div class="banner">${esc(state.error)}</div>` : ''}
+        <div class="pin-dots">${dots}</div>
+        <div class="keypad" id="keypad"></div>
+      </div>
+    `;
+    document.getElementById('back').onclick = () => { state.screen = 'rep-select'; state.error=null; render(); };
+    buildKeypad(document.getElementById('keypad'), (digit) => {
+      state.error = null;
+      if (digit === 'del'){ state.pinBuffer = state.pinBuffer.slice(0,-1); render(); return; }
+      if (state.pinBuffer.length >= 4) return;
+      state.pinBuffer += digit;
+      if (state.pinBuffer.length === 4){
+        checkRepPin();
+      } else {
+        render();
+      }
+    });
+  }
+
+  function buildKeypad(container, onPress){
+    const keys = ['1','2','3','4','5','6','7','8','9','','0','del'];
+    container.innerHTML = keys.map(k => {
+      if (k === '') return '<div></div>';
+      if (k === 'del') return '<button type="button" class="key wide" data-k="del">Delete</button>';
+      return `<button type="button" class="key" data-k="${k}">${k}</button>`;
+    }).join('');
+    container.querySelectorAll('[data-k]').forEach(b => {
+      b.addEventListener('click', () => onPress(b.getAttribute('data-k')));
+    });
+  }
+
+  function checkRepPin(){
+    const rep = state.reps.find(r => r.id === state.pendingRepId);
+    if (!rep){ state.error = 'Something went wrong. Try again.'; state.pinBuffer=''; render(); return; }
+    if (String(rep.pin) === state.pinBuffer){
+      state.currentRep = rep;
+      state.pinBuffer = '';
+      state.error = null;
+      subscribeMyEntries(rep.id);
+      state.screen = 'rep-main';
+      render();
+    } else {
+      state.error = 'Wrong PIN. Try again.';
+      state.pinBuffer = '';
+      render();
+    }
+  }
+
+  function subscribeMyEntries(repId){
+    if (state.myEntriesUnsub) state.myEntriesUnsub();
+    state.myEntries = [];
+    const q = state.dbReady.collection('entries').where('repId','==', repId).orderBy('ts','desc').limit(20);
+    state.myEntriesUnsub = q.onSnapshot(snap => {
+      state.myEntries = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      if (state.screen === 'rep-main') render();
+    }, err => {
+      console.error('entries sub error', err);
+    });
+  }
+
+  // ---------- REP MAIN (clock) ----------
+  let clockTicker = null;
+  function renderRepMain(){
+    const rep = state.reps.find(r => r.id === state.currentRep.id) || state.currentRep;
+    const isIn = rep.status === 'in';
+    const now = new Date();
+
+    $main.innerHTML = `
+      <div class="screen">
+        <button class="back-link" id="signOut">← Switch person</button>
+        <div>
+          <h1 class="title">${esc(rep.name)}</h1>
+        </div>
+        ${state.error ? `<div class="banner">${esc(state.error)}</div>` : ''}
+        <div class="clock-face">
+          <div class="now mono" id="nowClock">${now.toLocaleTimeString([], {hour:'numeric', minute:'2-digit', second:'2-digit'})}</div>
+          <div class="status-line">
+            <span class="status-dot ${isIn ? 'in':'out'}"></span>
+            ${isIn ? 'Clocked in' + (rep.lastAt ? ' since ' + fmtTime(rep.lastAt) : '') : 'Clocked out' + (rep.lastAt ? ' since ' + fmtTime(rep.lastAt) : '')}
+          </div>
+          <button class="clock-btn ${isIn ? 'do-out':'do-in'}" id="clockBtn" ${state.busy ? 'disabled':''}>
+            ${state.busy ? 'Getting location…' : (isIn ? 'Clock Out' : 'Clock In')}
+          </button>
+        </div>
+        <div>
+          <div class="section-label">Your recent activity</div>
+          <div class="card" style="margin-top:8px;">
+            ${renderMyEntries()}
+          </div>
+        </div>
+      </div>
+    `;
+    document.getElementById('signOut').onclick = () => {
+      if (state.myEntriesUnsub){ state.myEntriesUnsub(); state.myEntriesUnsub = null; }
+      state.currentRep = null;
+      state.screen = 'rep-select';
+      render();
+    };
+    document.getElementById('clockBtn').onclick = () => doClockAction(rep, isIn ? 'out' : 'in');
+
+    if (clockTicker) clearInterval(clockTicker);
+    clockTicker = setInterval(() => {
+      const el = document.getElementById('nowClock');
+      if (!el){ clearInterval(clockTicker); return; }
+      el.textContent = new Date().toLocaleTimeString([], {hour:'numeric', minute:'2-digit', second:'2-digit'});
+    }, 1000);
+  }
+
+  function renderMyEntries(){
+    if (!state.myEntries.length) return '<div class="empty">No activity yet.</div>';
+    return state.myEntries.map(e => `
+      <div class="entry-row">
+        <div class="time mono">${fmtTime(e.ts)}</div>
+        <div class="meta">
+          <span class="status-dot ${e.type}"></span>${e.type === 'in' ? 'Clocked in' : 'Clocked out'}
+          ${typeof e.lat === 'number' ? ` · <a href="${mapLink(e.lat,e.lng)}" target="_blank" rel="noopener">view location</a>` : ' · no location'}
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function doClockAction(rep, type){
+    state.busy = true;
+    state.error = null;
+    render();
+
+    const finish = (lat, lng) => {
+      const ts = new Date().toISOString();
+      const payload = { repId: rep.id, repName: rep.name, type, ts };
+      if (typeof lat === 'number'){ payload.lat = lat; payload.lng = lng; }
+      state.dbReady.collection('entries').add(payload)
+        .then(() => state.dbReady.collection('reps').doc(rep.id).update({ status: type, lastAt: ts }))
+        .then(() => {
+          state.busy = false;
+          render();
+        })
+        .catch(err => {
+          console.error(err);
+          state.busy = false;
+          state.error = 'Could not save. Check your connection and try again.';
+          render();
+        });
+    };
+
+    if (!navigator.geolocation){
+      finish();
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      pos => finish(pos.coords.latitude, pos.coords.longitude),
+      err => {
+        // proceed without location rather than blocking the clock action
+        finish();
+      },
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+    );
+  }
+
+  // ---------- ADMIN PIN ----------
+  function renderAdminPin(){
+    const dots = Array.from({length:4}).map((_,i) => `<div class="pin-dot ${i < state.adminPinBuffer.length ? 'filled':''}"></div>`).join('');
+    $main.innerHTML = `
+      <div class="screen">
+        <button class="back-link" id="back">← Back</button>
+        <div>
+          <h1 class="title">Admin access</h1>
+          <p class="sub">Enter the admin PIN.</p>
+        </div>
+        ${state.error ? `<div class="banner">${esc(state.error)}</div>` : ''}
+        <div class="pin-dots">${dots}</div>
+        <div class="keypad" id="keypad"></div>
+      </div>
+    `;
+    document.getElementById('back').onclick = goHome;
+    buildKeypad(document.getElementById('keypad'), (digit) => {
+      state.error = null;
+      if (digit === 'del'){ state.adminPinBuffer = state.adminPinBuffer.slice(0,-1); render(); return; }
+      if (state.adminPinBuffer.length >= 4) return;
+      state.adminPinBuffer += digit;
+      if (state.adminPinBuffer.length === 4){
+        checkAdminPin();
+      } else {
+        render();
+      }
+    });
+  }
+
+  function checkAdminPin(){
+    state.dbReady.doc('config/admin').get().then(snap => {
+      const pin = snap.exists ? snap.data().pin : null;
+      if (pin && String(pin) === state.adminPinBuffer){
+        state.adminPinBuffer = '';
+        state.error = null;
+        subscribeAllEntries();
+        document.getElementById('app').classList.add('wide');
+        state.screen = 'admin-main';
+        render();
+      } else {
+        state.error = 'Wrong PIN. Try again.';
+        state.adminPinBuffer = '';
+        render();
+      }
+    }).catch(err => {
+      console.error(err);
+      state.error = 'Could not verify PIN. Try again.';
+      state.adminPinBuffer = '';
+      render();
+    });
+  }
+
+  function subscribeAllEntries(){
+    if (state.allEntriesUnsub) state.allEntriesUnsub();
+    const q = state.dbReady.collection('entries').orderBy('ts','desc').limit(500);
+    state.allEntriesUnsub = q.onSnapshot(snap => {
+      state.allEntries = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      if (state.screen === 'admin-main') render();
+    }, err => console.error('all entries sub error', err));
+  }
+
+  // ---------- ADMIN MAIN ----------
+  function renderAdminMain(){
+    $main.innerHTML = `
+      <div class="screen">
+        <button class="back-link" id="back">← Back</button>
+        <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+          <h1 class="title" style="margin:0;">Team dashboard</h1>
+          <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+            <label class="field" style="gap:4px;">
+              <input type="month" id="exportMonth" value="${state.exportMonth}">
+            </label>
+            <button class="btn" id="exportBtn" ${state.exportBusy ? 'disabled' : ''}>${state.exportBusy ? 'Building…' : 'Export month (.xlsx)'}</button>
+            <button class="btn" id="exportAllBtn" ${state.exportAllBusy ? 'disabled' : ''}>${state.exportAllBusy ? 'Building…' : 'Export all (.xlsx)'}</button>
+          </div>
+        </div>
+        ${state.exportError ? `<div class="banner">${esc(state.exportError)}</div>` : ''}
+        ${state.exportAllError ? `<div class="banner">${esc(state.exportAllError)}</div>` : ''}
+        <div class="tabs">
+          <button class="tab ${state.adminTab==='live'?'active':''}" data-tab="live">Live status</button>
+          <button class="tab ${state.adminTab==='history'?'active':''}" data-tab="history">History</button>
+        </div>
+        <div id="tabBody"></div>
+      </div>
+    `;
+    document.getElementById('back').onclick = goHome;
+    document.getElementById('exportMonth').onchange = (ev) => { state.exportMonth = ev.target.value; };
+    document.getElementById('exportBtn').onclick = () => exportMonthReport(document.getElementById('exportMonth').value);
+    document.getElementById('exportAllBtn').onclick = () => exportAllReport();
+    $main.querySelectorAll('.tab').forEach(t => {
+      t.onclick = () => { state.adminTab = t.getAttribute('data-tab'); render(); };
+    });
+    const body = document.getElementById('tabBody');
+    if (state.adminTab === 'live') body.innerHTML = renderLiveTab();
+    else body.innerHTML = renderHistoryTab();
+
+    if (state.adminTab === 'live'){
+      const ab = document.getElementById('addRepBtn');
+      if (ab) ab.onclick = addRep;
+      const nn = document.getElementById('newRepName'), np = document.getElementById('newRepPin');
+      if (nn) nn.oninput = () => { state.newRepName = nn.value; };
+      if (np) np.oninput = () => { np.value = np.value.replace(/\D/g,'').slice(0,4); state.newRepPin = np.value; };
+      state.reps.forEach(r => {
+        const del = document.getElementById('del-' + r.id);
+        if (del) del.onclick = () => removeRep(r);
+        const btn = document.getElementById('force-' + r.id);
+        if (btn) btn.onclick = () => forceToggleStatus(r);
+      });
+    } else {
+      const sel = document.getElementById('historyRepFilter');
+      if (sel) sel.onchange = () => { state.historyFilterRep = sel.value; render(); };
+      state.allEntries.forEach(e => {
+        const link = document.getElementById('edit-' + e.id);
+        if (link) link.onclick = () => { state.editingEntry = e; render(); };
+      });
+    }
+    if (state.editingEntry) renderEditModal();
+  }
+
+  function renderLiveTab(){
+    const addForm = `
+      <div class="rep-status-card" style="flex-wrap:wrap; gap:10px;">
+        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; flex:1; min-width:0;">
+          <label class="field" style="flex:2 1 140px; min-width:0;">Name
+            <input type="text" id="newRepName" maxlength="60" placeholder="Team member name" value="${esc(state.newRepName||'')}">
+          </label>
+          <label class="field" style="flex:1 1 90px; min-width:0;">4-digit PIN
+            <input type="text" id="newRepPin" inputmode="numeric" maxlength="4" placeholder="0000" value="${esc(state.newRepPin||'')}">
+          </label>
+          <button class="btn primary" id="addRepBtn" ${state.addRepBusy ? 'disabled' : ''}>${state.addRepBusy ? 'Adding…' : 'Add team member'}</button>
+        </div>
+        ${state.addRepError ? `<div class="banner" style="width:100%;">${esc(state.addRepError)}</div>` : ''}
+      </div>`;
+    if (!state.reps.length) return `<div class="stack">${addForm}<div class="empty">No team members yet. Add the first one above.</div></div>`;
+    const today = new Date();
+    const weekStart = startOfWeek(today);
+    const cards = state.reps.map(r => {
+      const todayMins = computeWorkedMinutes(state.allEntries, r.id, new Date(today.getFullYear(),today.getMonth(),today.getDate()));
+      const weekMins = computeWorkedMinutes(state.allEntries, r.id, weekStart);
+      return `
+        <div class="rep-status-card">
+          <div>
+            <div class="name">${esc(r.name)}</div>
+            <div class="sub">${r.status==='in' ? 'Since ' + fmtTime(r.lastAt||'') : (r.lastAt ? 'Since ' + fmtTime(r.lastAt) : 'No activity yet')} · Today ${minutesToLabel(todayMins)} · Week ${minutesToLabel(weekMins)}</div>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px;">
+            <span class="pill ${r.status==='in'?'in':'out'}">${r.status==='in' ? 'Clocked in':'Clocked out'}</span>
+            <button class="btn" id="force-${r.id}" title="Correct status">Correct</button>
+            <button class="btn" id="del-${r.id}" title="Remove team member">Remove</button>
+          </div>
+        </div>
+      `;
+    }).join('');
+    return `<div class="stack">${addForm}${cards}</div>`;
+  }
+
+  function addRep(){
+    const name = (document.getElementById('newRepName').value || '').trim();
+    const pin = (document.getElementById('newRepPin').value || '').trim();
+    state.newRepName = name; state.newRepPin = pin;
+    if (!name){ state.addRepError = 'Enter a name.'; render(); return; }
+    if (!/^\d{4}$/.test(pin)){ state.addRepError = 'The PIN must be exactly 4 digits.'; render(); return; }
+    if (state.reps.some(r => String(r.pin) === pin)){ state.addRepError = 'Another team member already uses that PIN. Pick a different one.'; render(); return; }
+    state.addRepBusy = true; state.addRepError = null; render();
+    state.dbReady.collection('reps').add({ name, pin, status: 'out', lastAt: null })
+      .then(() => { state.newRepName = ''; state.newRepPin = ''; state.addRepBusy = false; render(); })
+      .catch(err => { console.error(err); state.addRepBusy = false; state.addRepError = 'Could not add. Check you have edit access and try again.'; render(); });
+  }
+
+  function removeRep(r){
+    const btn = document.getElementById('del-' + r.id);
+    if (state.pendingDelete !== r.id){
+      state.pendingDelete = r.id;
+      if (btn) btn.textContent = 'Confirm remove?';
+      setTimeout(() => { if (state.pendingDelete === r.id){ state.pendingDelete = null; const b = document.getElementById('del-' + r.id); if (b) b.textContent = 'Remove'; } }, 5000);
+      return;
+    }
+    state.pendingDelete = null;
+    state.dbReady.collection('reps').doc(r.id).delete()
+      .catch(err => { console.error(err); state.addRepError = 'Could not remove. Try again.'; render(); });
+  }
+
+  function forceToggleStatus(r){
+    const newStatus = r.status === 'in' ? 'out' : 'in';
+    if (state.pendingForce !== r.id){
+      state.pendingForce = r.id;
+      const b = document.getElementById('force-' + r.id);
+      if (b){ b.textContent = 'Confirm ' + (newStatus === 'in' ? 'clock in' : 'clock out') + '?'; }
+      setTimeout(() => { if (state.pendingForce === r.id){ state.pendingForce = null; const b2 = document.getElementById('force-' + r.id); if (b2) b2.textContent = 'Correct'; } }, 5000);
+      return;
+    }
+    state.pendingForce = null;
+    const ts = new Date().toISOString();
+    state.dbReady.collection('reps').doc(r.id).update({ status: newStatus, lastAt: ts })
+      .then(() => state.dbReady.collection('entries').add({ repId: r.id, repName: r.name, type: newStatus, ts, correctedByAdmin: true }))
+      .catch(err => { console.error(err); state.error='Could not update. Try again.'; render(); });
+  }
+
+  function renderHistoryTab(){
+    const options = ['<option value="all">All reps</option>'].concat(
+      state.reps.map(r => `<option value="${esc(r.id)}" ${state.historyFilterRep===r.id?'selected':''}>${esc(r.name)}</option>`)
+    ).join('');
+    let rows = state.allEntries;
+    if (state.historyFilterRep !== 'all') rows = rows.filter(e => e.repId === state.historyFilterRep);
+
+    const trs = rows.slice(0, 200).map(e => `
+      <tr>
+        <td class="mono">${fmtDateTime(e.ts)}</td>
+        <td>${esc(e.repName || e.repId)}</td>
+        <td><span class="status-dot ${e.type}"></span>${e.type==='in'?'In':'Out'}</td>
+        <td>${typeof e.lat === 'number' ? `<a href="${mapLink(e.lat,e.lng)}" target="_blank" rel="noopener">map</a>` : '—'}</td>
+        <td>${e.editedAt ? 'Edited ' + fmtDateTime(e.editedAt) + (e.editNote ? ' — ' + esc(e.editNote) : '') : (e.correctedByAdmin ? 'Admin correction' : '—')}</td>
+        <td><button class="edit-link" id="edit-${e.id}">Edit</button></td>
+      </tr>
+    `).join('');
+
+    return `
+      <div class="stack" style="margin-top:14px;">
+        <div class="filters">
+          <select id="historyRepFilter">${options}</select>
+        </div>
+        <div class="overflow-x">
+          <table>
+            <thead><tr><th>When</th><th>Rep</th><th>Type</th><th>Location</th><th>Notes</th><th></th></tr></thead>
+            <tbody>${trs || '<tr><td colspan="6" class="empty">No entries yet.</td></tr>'}</tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  }
+
+  // Pairs each rep's chronological in/out entries into one row per shift:
+  // Name, Date, Time In, Time Out, Location (In), Location (Out), Notes.
+  // A clock-in with no matching clock-out yet (still on shift, or an edit
+  // left it dangling) still gets a row with Time Out left blank, and vice
+  // versa for a stray clock-out.
+  function buildShiftRows(entries){
+    const byRep = {};
+    entries.forEach(e => { (byRep[e.repId] = byRep[e.repId] || []).push(e); });
+    const rows = [];
+
+    function locOf(e){ return (e && typeof e.lat === 'number') ? mapLink(e.lat, e.lng) : ''; }
+    function noteOf(e){ return (e && e.editNote) ? e.editNote : ''; }
+    function makeRow(inE, outE){
+      const anchor = inE || outE;
+      const rep = state.reps.find(r => r.id === anchor.repId);
+      const d = new Date(anchor.ts);
+      const notes = [noteOf(inE), noteOf(outE)].filter(Boolean).join(' / ');
+      return {
+        Name: (rep && rep.name) || anchor.repName || anchor.repId || '',
+        Date: d.toLocaleDateString(),
+        'Time In': inE ? new Date(inE.ts).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '',
+        'Time Out': outE ? new Date(outE.ts).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '',
+        'Location (In)': locOf(inE),
+        'Location (Out)': locOf(outE),
+        Notes: notes,
+        _sort: new Date(anchor.ts).getTime()
+      };
+    }
+
+    Object.keys(byRep).forEach(repId => {
+      const list = byRep[repId].slice().sort((a,b) => new Date(a.ts) - new Date(b.ts));
+      let openIn = null;
+      list.forEach(e => {
+        if (e.type === 'in'){
+          if (openIn) rows.push(makeRow(openIn, null)); // unmatched prior clock-in
+          openIn = e;
+        } else if (e.type === 'out'){
+          if (openIn){ rows.push(makeRow(openIn, e)); openIn = null; }
+          else rows.push(makeRow(null, e)); // stray clock-out with no clock-in on file
+        }
+      });
+      if (openIn) rows.push(makeRow(openIn, null)); // still clocked in
+    });
+
+    rows.sort((a,b) => a._sort - b._sort);
+    rows.forEach(r => delete r._sort);
+    return rows;
+  }
+
+  function buildSummaryRows(entries, sinceDate){
+    const repIds = state.reps.length ? state.reps.map(r => r.id) : Array.from(new Set(entries.map(e => e.repId)));
+    return repIds.map(id => {
+      const rep = state.reps.find(r => r.id === id);
+      const mins = computeWorkedMinutes(entries, id, sinceDate);
+      return {
+        Rep: rep ? rep.name : id,
+        'Total hours': Math.round((mins/60) * 100) / 100,
+        'Total (h m)': minutesToLabel(mins)
+      };
+    });
+  }
+
+  const EMPTY_SHIFT_ROW = { Name: '', Date: '', 'Time In': '', 'Time Out': '', 'Location (In)': '', 'Location (Out)': '', Notes: '' };
+
+  async function buildAndSaveWorkbook(entries, sinceDate, filename){
+    const summaryRows = buildSummaryRows(entries, sinceDate);
+    const shiftRows = buildShiftRows(entries);
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(summaryRows), 'Summary');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(shiftRows.length ? shiftRows : [EMPTY_SHIFT_ROW]), 'Shifts');
+
+    const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    const blob = new Blob([wbout], { type: 'application/octet-stream' });
+
+    const downloads = await window.claude.use('downloads');
+    if (!downloads) return { ok: false, reason: 'unavailable' };
+    try {
+      await downloads.save({ filename, data: blob });
+      return { ok: true };
+    } catch(err){
+      if (err && err.code === 'declined') return { ok: true }; // viewer chose not to save; not an error
+      console.error(err);
+      return { ok: false, reason: 'error' };
+    }
+  }
+
+  async function exportMonthReport(monthValue){
+    if (!monthValue){ state.exportError = 'Pick a month first.'; render(); return; }
+    if (typeof XLSX === 'undefined'){
+      state.exportError = 'The Excel export library did not load. Check your connection and try again.';
+      render();
+      return;
+    }
+    state.exportBusy = true;
+    state.exportError = null;
+    render();
+
+    try {
+      const [y, m] = monthValue.split('-').map(Number);
+      const start = new Date(y, m-1, 1, 0, 0, 0);
+      const end = new Date(y, m, 1, 0, 0, 0);
+
+      const snap = await state.dbReady.collection('entries')
+        .where('ts', '>=', start.toISOString())
+        .where('ts', '<', end.toISOString())
+        .orderBy('ts', 'asc')
+        .get();
+      const entries = snap.docs.map(d => d.data());
+
+      const result = await buildAndSaveWorkbook(entries, start, 'field-clock-' + monthValue + '.xlsx');
+      if (!result.ok){
+        state.exportError = result.reason === 'unavailable'
+          ? 'Downloads aren\u2019t available in this view.'
+          : 'Could not save the file. Try again.';
+      }
+    } catch(err){
+      console.error(err);
+      state.exportError = 'Could not build the report. Try again.';
+    }
+    state.exportBusy = false;
+    render();
+  }
+
+  async function exportAllReport(){
+    if (typeof XLSX === 'undefined'){
+      state.exportAllError = 'The Excel export library did not load. Check your connection and try again.';
+      render();
+      return;
+    }
+    state.exportAllBusy = true;
+    state.exportAllError = null;
+    render();
+
+    try {
+      const snap = await state.dbReady.collection('entries').orderBy('ts', 'asc').limit(1000).get();
+      const entries = snap.docs.map(d => d.data());
+      const sinceDate = entries.length ? new Date(entries[0].ts) : new Date(0);
+
+      const result = await buildAndSaveWorkbook(entries, sinceDate, 'field-clock-all-time.xlsx');
+      if (!result.ok){
+        state.exportAllError = result.reason === 'unavailable'
+          ? 'Downloads aren\u2019t available in this view.'
+          : 'Could not save the file. Try again.';
+      } else if (snap.docs.length === 1000){
+        state.exportAllError = 'Showing the most recent 1,000 entries \u2014 older ones were left out.';
+      }
+    } catch(err){
+      console.error(err);
+      state.exportAllError = 'Could not build the report. Try again.';
+    }
+    state.exportAllBusy = false;
+    render();
+  }
+
+  function renderEditModal(){
+    const e = state.editingEntry;
+    let backdrop = document.getElementById('editBackdrop');
+    if (backdrop) backdrop.remove();
+    backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop';
+    backdrop.id = 'editBackdrop';
+    backdrop.innerHTML = `
+      <div class="modal">
+        <h2>Edit entry — ${esc(e.repName || '')}</h2>
+        <div class="stack">
+          <label class="field">Time
+            <input type="datetime-local" id="editTs" value="${toDatetimeLocal(e.ts)}">
+          </label>
+          <label class="field">Type
+            <select id="editType">
+              <option value="in" ${e.type==='in'?'selected':''}>Clock in</option>
+              <option value="out" ${e.type==='out'?'selected':''}>Clock out</option>
+            </select>
+          </label>
+          <label class="field">Latitude (optional)
+            <input type="number" step="any" id="editLat" value="${typeof e.lat==='number' ? e.lat : ''}">
+          </label>
+          <label class="field">Longitude (optional)
+            <input type="number" step="any" id="editLng" value="${typeof e.lng==='number' ? e.lng : ''}">
+          </label>
+          <label class="field">Note (why this was corrected)
+            <input type="text" id="editNote" value="" placeholder="e.g. forgot to clock out">
+          </label>
+        </div>
+        <div class="row-actions">
+          <button class="btn" id="cancelEdit">Cancel</button>
+          <button class="btn primary" id="saveEdit">Save changes</button>
+        </div>
+      </div>
+    `;
+    document.getElementById('app').appendChild(backdrop);
+    document.getElementById('cancelEdit').onclick = () => { state.editingEntry = null; backdrop.remove(); };
+    document.getElementById('saveEdit').onclick = () => {
+      const tsVal = document.getElementById('editTs').value;
+      const typeVal = document.getElementById('editType').value;
+      const latVal = document.getElementById('editLat').value;
+      const lngVal = document.getElementById('editLng').value;
+      const noteVal = document.getElementById('editNote').value;
+      if (!tsVal){ document.getElementById('editTs').focus(); return; }
+      const iso = new Date(tsVal).toISOString();
+      const update = { ts: iso, type: typeVal, editedAt: new Date().toISOString(), editedBy: 'admin' };
+      if (noteVal) update.editNote = noteVal;
+      if (latVal !== '' && lngVal !== ''){ update.lat = parseFloat(latVal); update.lng = parseFloat(lngVal); }
+      state.dbReady.collection('entries').doc(e.id).update(update)
+        .then(() => { state.editingEntry = null; backdrop.remove(); })
+        .catch(err => { console.error(err); document.getElementById('saveEdit').textContent='Could not save. Try again.'; });
+    };
+  }
+
+  // ---------- init ----------
+  async function init(){
+    let db = null;
+    try {
+      db = await window.claude.use('db');
+    } catch(e){ db = null; }
+    state.dbReady = db;
+    state.dbChecked = true;
+    render();
+    if (!db) return;
+
+    db.collection('reps').orderBy('name').onSnapshot(snap => {
+      state.reps = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      state.repsLoaded = true;
+      if (state.currentRep){
+        const fresh = state.reps.find(r => r.id === state.currentRep.id);
+        if (fresh) state.currentRep = fresh;
+      }
+      render();
+    }, err => console.error('reps sub error', err));
+  }
+
+  init();
+})();
+</script>
+
+</body>
+</html>
 <title>Field Clock</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
